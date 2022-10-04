@@ -5,6 +5,16 @@ __pycache__/
 
 # C extensions
 *.so
+*.npy
+*.obj
+*.png
+*.pt
+log_30/
+*.ply
+*.weight
+._*
+*.hdf5
+
 
 # Distribution / packaging
 .Python
@@ -127,3 +137,5 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea/
+.vscode/
