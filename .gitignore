@@ -14,6 +14,7 @@ log_30/
 *.weight
 ._*
 *.hdf5
+*.gif
 
 
 # Distribution / packaging

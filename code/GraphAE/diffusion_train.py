@@ -4,9 +4,9 @@ import torch
 import torch.optim as optim
 from tqdm import tqdm
 
-from Models import EMA as EMA
+from Models.EMA import EMA as EMA
 from Models.conditional_model import ConditionalModel
-from utils import make_beta_schedule, noise_estimation_loss
+from utils.utils import make_beta_schedule, noise_estimation_loss
 
 n_steps = 100  # number of steps
 num_steps = n_steps
@@ -25,7 +25,7 @@ one_minus_alphas_bar_sqrt = torch.sqrt(1 - alphas_prod)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = ConditionalModel(n_steps)
-model.load_state_dict(torch.load("model.pt"))
+model.load_state_dict(torch.load("../../train/0422_graphAE_dfaust/diffusion/model.pt"))
 model.eval()
 # model = model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -37,10 +37,12 @@ batch_size = 16
 
 # if __name__ == 'main':
 data = np.load("../../data/DFAUST/test_res.npy")
-indices = list(range(0, 960, 32))
+print(data.shape)
+
+indices = list(range(0, 32928, 32))
 data = data[indices, :, :, :]
-data = np.reshape(data, (960, 7, 9))
-data = data.reshape((960, 63))
+data = np.reshape(data, (32928, 7, 9))
+data = data.reshape((32928, 63))
 dataset = torch.Tensor(data).float()
 print(dataset.shape)
 
@@ -60,7 +62,7 @@ for t in pbar:
         indices = permutation[i:i + batch_size]
         batch_x = dataset[indices]
         # Compute the loss.
-        loss = noise_estimation_loss(model, batch_x)
+        loss = noise_estimation_loss(model, batch_x, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps)
         # Before the backward pass, zero all of the network gradients
         optimizer.zero_grad()
         # Backward pass: compute gradient of the loss with respect to parameters
@@ -77,5 +79,5 @@ for t in pbar:
     batch_losses.append(batch_loss)
 
 plt.plot(batch_losses)
-plt.savefig("batch_losses")
+plt.savefig("../../train/0422_graphAE_dfaust/diffusion/batch_losses_3")
 torch.save(model.state_dict(), "../../train/0422_graphAE_dfaust/diffusion/model.pt")

@@ -60,7 +60,7 @@ def scene_to_png(scene, png_filename):
                       scene=plotly_scenes)
     fig.write_image(png_filename)
 
-for i in range(1, 101):
+for i in range(1, 1000):
     if i <= 9:
         j = "/0000000"
     elif i <= 99:
