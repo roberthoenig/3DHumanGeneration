@@ -1,4 +1,4 @@
-# Install script for directory: /home/filipe/Documents/ETH/Year2/DiffusionProject/MeshConvolution/code/GraphSampling
+# Install script for directory: /home/robert/g/3DHumanGeneration/code/GraphSampling
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/filipe/Documents/ETH/Year2/DiffusionProject/MeshConvolution/code/GraphSampling/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/robert/g/3DHumanGeneration/code/GraphSampling/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
