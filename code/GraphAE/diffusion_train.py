@@ -14,20 +14,22 @@ num_steps = n_steps
 # betas = make_beta_schedule(schedule='linear', n_timesteps=num_steps, start=1e-3, end=1e-3)
 betas = make_beta_schedule(schedule='sigmoid', n_timesteps=n_steps, start=1e-5, end=1e-2)
 
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device('cpu')
+
 # betas = make_beta_schedule(schedule='sigmoid', n_timesteps=num_steps, start=1e-5, end=1e-2)
 alphas = 1 - betas
 alphas_prod = torch.cumprod(alphas, dim=0)
 alphas_prod_p = torch.cat([torch.tensor([1]).float(), alphas_prod[:-1]], 0)
 alphas_bar = alphas_prod
-alphas_bar_sqrt = torch.sqrt(alphas_prod)
-one_minus_alphas_bar_log = torch.log(1 - alphas_prod)
-one_minus_alphas_bar_sqrt = torch.sqrt(1 - alphas_prod)
+alphas_bar_sqrt = torch.sqrt(alphas_prod).to(device)
+one_minus_alphas_bar_log = torch.log(1 - alphas_prod).to(device)
+one_minus_alphas_bar_sqrt = torch.sqrt(1 - alphas_prod).to(device)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = ConditionalModel(n_steps)
-model.load_state_dict(torch.load("../../train/0422_graphAE_dfaust/diffusion/model.pt"))
+# model.load_state_dict(torch.load("../../train/0422_graphAE_dfaust/diffusion/model.pt"))
 model.eval()
-# model = model.to(device)
+model = model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Create EMA model
 ema = EMA(0.9)
@@ -46,7 +48,7 @@ data = data.reshape((32928, 63))
 dataset = torch.Tensor(data).float()
 print(dataset.shape)
 
-# dataset = dataset.to(device)
+dataset = dataset.to(device)
 
 
 batch_losses = []
@@ -62,7 +64,7 @@ for t in pbar:
         indices = permutation[i:i + batch_size]
         batch_x = dataset[indices]
         # Compute the loss.
-        loss = noise_estimation_loss(model, batch_x, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps)
+        loss = noise_estimation_loss(model, batch_x, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps, device)
         # Before the backward pass, zero all of the network gradients
         optimizer.zero_grad()
         # Backward pass: compute gradient of the loss with respect to parameters
@@ -72,11 +74,11 @@ for t in pbar:
         # Calling the step function to update the parameters
         optimizer.step()
         # Update the exponential moving average
-        ema.update(model)
+        # ema.update(model)
         losses.append(loss.detach().item())
     batch_loss = np.array(losses).mean()
     pbar.set_postfix({'batch_loss': batch_loss})
-    batch_losses.append(batch_loss)
+    batch_losses.append(batch_loss) 
 
 plt.plot(batch_losses)
 plt.savefig("../../train/0422_graphAE_dfaust/diffusion/batch_losses_3")

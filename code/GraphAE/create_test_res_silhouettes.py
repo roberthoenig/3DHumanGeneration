@@ -1,19 +1,37 @@
-# -*- coding: utf-8 -*-
-"""
-Spyder Editor
-
-This is a temporary script file.
-"""
-
 import torch
 import numpy as np
 from Models import graphAE as graphAE
 from utils import graphAE_param as Param
 from DataLoader import graphAE_dataloader as Dataloader
 from plyfile import PlyData
-from utils.utils import get_faces_from_ply, get_colors_from_diff_pc
+from utils.utils import get_faces_from_ply, get_colors_from_diff_pc, dump
 import os
+import open3d as o3d
+import trimesh
+import pyrender
+from PIL import Image
+from tqdm import tqdm
 
+
+def ply_to_png(ply_filename, png_filename, silhouette=False):
+    mesh = trimesh.load(ply_filename)
+    mesh = pyrender.Mesh.from_trimesh(mesh, smooth=False)
+    scene = pyrender.Scene(ambient_light=[.1, .1, .3], bg_color=[0, 0, 0])
+    camera = pyrender.PerspectiveCamera( yfov=np.pi / 3.0)
+    light = pyrender.DirectionalLight(color=[1,1,1], intensity=2e3)
+    scene.add(mesh, pose=  np.eye(4))
+    scene.add(light, pose=  np.eye(4))
+    scene.add(camera, pose=[[ 1,  0,  0,  0],
+                            [ 0,  1, 0, 0],
+                            [ 0,  0,  1,  2],
+                            [ 0,  0,  0,  1]])
+    # render scene
+    r = pyrender.OffscreenRenderer(512, 512)
+    color, _ = r.render(scene)
+    if silhouette:
+        color = (255 * (color > 0)).astype(np.uint8)
+    img = Image.fromarray(color)
+    img.save(png_filename)
 
 def test(param, test_npy_fn, out_ply_folder, skip_frames=0):
     print("**********Initiate Netowrk**********")
@@ -39,64 +57,42 @@ def test(param, test_npy_fn, out_ply_folder, skip_frames=0):
     print("**********Get test pcs**********", test_npy_fn)
     # get ply file lst
     pc_lst = np.load(test_npy_fn)
+    print("pc_lst.shape", pc_lst.shape)
     print(pc_lst.shape[0], "meshes in total.")
 
     geo_error_sum = 0
     laplace_error_sum = 0
     pc_num = len(pc_lst)
-    n = 0
+    n = 2000
     out = np.empty([len(pc_lst), 32, 7, 9])
-
-    while n < (pc_num - 1):
-
+    for n in tqdm(range(0, pc_num-1, param.batch)):
         batch = min(pc_num - n, param.batch)
         pcs = pc_lst[n:n + batch]
         height = pcs[:, :, 1].mean(1)
-
         # centralize each instance
         pcs[:, :, 0:3] -= pcs[:, :, 0:3].mean(1).reshape((-1, 1, 3)).repeat(param.point_num,
                                                                             1)
-
         pcs_torch = torch.FloatTensor(pcs).cuda()
         if param.augmented_data:
+            assert False
             pcs_torch = Dataloader.get_augmented_pcs(pcs_torch)
         if batch < param.batch:
             pcs_torch = torch.cat((pcs_torch, torch.zeros(param.batch - batch, param.point_num, 3).cuda()), 0)
 
         if param.generate_encoded_data:
             out_pcs_torch = model.forward_till_layer_n(pcs_torch, 8)
-            out_pcs_torch = out_pcs_torch.cpu()
-            out[n, :, :, :] = out_pcs_torch
-        else:
-            out_pcs_torch = model(pcs_torch)
-            geo_error = model.compute_geometric_mean_euclidean_dist_error(pcs_torch[0:batch], out_pcs_torch[0:batch])
-            geo_error_sum += geo_error * batch
-            laplace_error_sum = laplace_error_sum + model.compute_laplace_Mean_Euclidean_Error(pcs_torch[0:batch],
-                                                                                               out_pcs_torch[
-                                                                                               0:batch]) * batch
-            print(n, geo_error.item())
-
-            if n % 128 == 0:
-                print(height[0])
-                pc_gt = np.array(pcs_torch[0].data.tolist())
-                pc_gt[:, 1] += height[0]
-                pc_out = np.array(out_pcs_torch[0].data.tolist())
-                pc_out[:, 1] += height[0]
-
-                diff_pc = np.sqrt(pow(pc_gt - pc_out, 2).sum(1))
-                color = get_colors_from_diff_pc(diff_pc, 0, 0.02) * 255
-                Dataloader.save_pc_with_color_into_ply(template_plydata, pc_out, color,
-                                                       out_ply_folder + "%08d" % (n) + "_out.ply")
-                Dataloader.save_pc_into_ply(template_plydata, pc_gt, out_ply_folder + "%08d" % (n) + "_gt.ply")
-
+            out[n, :, :, :] = out_pcs_torch.cpu()
+            
+            out_mesh = model.forward_from_layer_n(out_pcs_torch, 8)
+            out_mesh = out_mesh.cpu()
+            for i in range(out_mesh.shape[0]):
+                pc_out = np.array(out_mesh[i].data.tolist())
+                # pc_out = np.array(pcs[i].data.tolist())
+                # pc_out[:, 1] += avg_height[0]
+                Dataloader.save_pc_into_ply(template_plydata, pc_out, "_tmp_out.ply")
+                ply_to_png("_tmp_out.ply", f"silhouettes/{n+i}_silhouette.png", silhouette=True)
+                # ply_to_png("_tmp_out.ply", f"silhouettes/{n}.png", silhouette=False)
         n = n + batch
-
-    if not param.generate_encoded_data:
-        geo_error_avg = geo_error_sum.item() / pc_num
-        laplace_error_avg = laplace_error_sum.item() / pc_num
-
-        print("geo error:", geo_error_avg, "laplace error:", laplace_error_avg)
-
     return out
 
 
@@ -126,5 +122,5 @@ with torch.no_grad():
     np.random.seed(10)
 
     outly = test(param, test_npy_fn, out_ply_folder, skip_frames=0)
-    if param.generate_encoded_data:
-        np.save("../../data/DFAUST/test_res.npy", outly)
+    # if param.generate_encoded_data:
+        # np.save("../../data/DFAUST/test_res.npy", outly)

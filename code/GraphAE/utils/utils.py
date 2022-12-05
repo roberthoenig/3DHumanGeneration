@@ -85,12 +85,15 @@ def p_sample(model, x, t, alphas, one_minus_alphas_bar_sqrt, betas):
     sample = mean + sigma_t * z
     return (sample)
 
+def dump(obj):
+  for attr in dir(obj):
+    print("obj.%s = %r" % (attr, getattr(obj, attr)))
 
-def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps):
+def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps, device):
     batch_size = x_0.shape[0]
     # Select a random step for each example
     t = torch.randint(0, n_steps, size=(batch_size // 2 + 1,))
-    t = torch.cat([t, n_steps - t - 1], dim=0)[:batch_size].long()
+    t = torch.cat([t, n_steps - t - 1], dim=0)[:batch_size].long().to(device)
     # x0 multiplier
     a = extract(alphas_bar_sqrt, t, x_0.shape)
     # eps multiplier

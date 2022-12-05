@@ -29,11 +29,11 @@ param_mesh.read_config("../../train/0422_graphAE_dfaust/30_conv_pool.config")
 # param.augmented_data=True
 param_mesh.batch = 1
 
-param_mesh.read_weight_path = "../../train/0422_graphAE_dfaust/weight_30/model_epoch0198.weight"
+param_mesh.read_weight_path = "../../train/0422_graphAE_dfaust/weight_30/model_epoch0018.weight"
 
 test_npy_fn = "../../data/DFAUST/train.npy"
 
-out_test_folder = "../../train/0422_graphAE_dfaust/test_30/epoch198/"
+out_test_folder = "../../train/0422_graphAE_dfaust/diffusion/"
 
 out_ply_folder = out_test_folder + "ply/"
 

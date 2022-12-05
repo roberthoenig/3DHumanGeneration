@@ -4,9 +4,10 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
+from tqdm import tqdm
 
-save_filepath = "../../train/0422_graphAE_dfaust/test_30/images_1/"
-read_filepath = "../../train/0422_graphAE_dfaust/test_30/epoch198/ply"
+save_filepath = "../../train/0422_graphAE_dfaust/diffusion/images/"
+read_filepath = "../../train/0422_graphAE_dfaust/diffusion/ply"
 
 
 # adapted from https://nbviewer.org/github/empet/Hollow-mask-illusion/blob/main/Hollow-Mask-illusion-Animation.ipynb
@@ -60,7 +61,7 @@ def scene_to_png(scene, png_filename):
                       scene=plotly_scenes)
     fig.write_image(png_filename)
 
-for i in range(1, 1000):
+for i in tqdm(range(1, 1000, 25)):
     if i <= 9:
         j = "/0000000"
     elif i <= 99:
