@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch
 
 
 class ConditionalLinear(nn.Module):
@@ -19,14 +20,17 @@ class ConditionalLinear(nn.Module):
 
 
 class ConditionalModel(nn.Module):
-    def __init__(self, n_steps):
+    def __init__(self, n_steps, in_sz, cond_sz, cond_model):
         super(ConditionalModel, self).__init__()
-        self.lin1 = ConditionalLinear(63, 128, n_steps)
+        self.cond_model = cond_model
+        self.lin1 = ConditionalLinear(in_sz+cond_sz, 128, n_steps)
         self.lin2 = ConditionalLinear(128, 128, n_steps)
         self.lin3 = ConditionalLinear(128, 128, n_steps)
-        self.lin4 = nn.Linear(128, 63)
+        self.lin4 = nn.Linear(128, in_sz)
 
-    def forward(self, x, y):
+    def forward(self, x, y, cond):
+        cond_processed = self.cond_model(cond)
+        x = torch.cat([x, cond_processed], dim=-1)
         x = F.softplus(self.lin1(x, y))
         x = F.softplus(self.lin2(x, y))
         x = F.softplus(self.lin3(x, y))
