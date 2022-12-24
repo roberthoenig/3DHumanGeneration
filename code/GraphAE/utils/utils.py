@@ -3,6 +3,38 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import cm
 from sklearn.datasets import make_swiss_roll
+import torch
+import numpy as np
+from Models import graphAE as graphAE
+import trimesh
+import pyrender
+from PIL import Image
+from os import listdir
+from os.path import isfile, join
+import natsort
+from tqdm import tqdm
+
+
+def ply_to_png(ply_filename, png_filename, silhouette=False):
+    mesh = trimesh.load(ply_filename)
+    mesh = pyrender.Mesh.from_trimesh(mesh, smooth=False)
+    scene = pyrender.Scene(ambient_light=[.1, .1, .3], bg_color=[0, 0, 0])
+    camera = pyrender.PerspectiveCamera( yfov=np.pi / 3.0)
+    light = pyrender.DirectionalLight(color=[1,1,1], intensity=2e3)
+    scene.add(mesh, pose=  np.eye(4))
+    scene.add(light, pose=  np.eye(4))
+    scene.add(camera, pose=[[ 1,  0,  0,  0],
+                            [ 0,  1, 0, 0],
+                            [ 0,  0,  1,  2],
+                            [ 0,  0,  0,  1]])
+    # render scene
+    r = pyrender.OffscreenRenderer(512, 512)
+    color, _ = r.render(scene)
+    if silhouette:
+        color = (255 * (color > 0)).astype(np.uint8)
+    img = Image.fromarray(color)
+    img.save(png_filename)
+
 
 
 def sample_batch(size, noise=0.5):
@@ -61,21 +93,21 @@ def get_faces_from_ply(ply):
     return faces
 
 
-def p_sample_loop(n_steps, model, shape, alphas, one_minus_alphas_bar_sqrt, betas):
+def p_sample_loop(n_steps, model, shape, alphas, one_minus_alphas_bar_sqrt, betas, cond):
     cur_x = torch.randn(shape)
     x_seq = [cur_x]
     for i in reversed(range(n_steps)):
-        cur_x = p_sample(model, cur_x, i, alphas, one_minus_alphas_bar_sqrt, betas)
+        cur_x = p_sample(model, cur_x, i, alphas, one_minus_alphas_bar_sqrt, betas, cond)
         x_seq.append(cur_x)
     return x_seq
 
 
-def p_sample(model, x, t, alphas, one_minus_alphas_bar_sqrt, betas):
+def p_sample(model, x, t, alphas, one_minus_alphas_bar_sqrt, betas, cond):
     t = torch.tensor([t])
     # Factor to the model output
     eps_factor = ((1 - extract(alphas, t, x.shape)) / extract(one_minus_alphas_bar_sqrt, t, x.shape))
     # Model output
-    eps_theta = model(x, t)
+    eps_theta = model(x, t, cond=cond)
     # Final values
     mean = (1 / extract(alphas, t, x.shape).sqrt()) * (x - (eps_factor * eps_theta))
     # Generate z
@@ -103,3 +135,30 @@ def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt
     x = x_0 * a + e * am1
     output = model(x, t, cond=cond)
     return (e - output).square().mean()
+
+def parallel_to_cpu_state_dict(state_dict):
+    deparalleled_state_dict = {}
+    for k in state_dict.keys():
+        s = "cond_model.module"
+        new_k = k
+        if k.startswith(s):
+            new_k = "cond_model" + k[len(s):]
+        deparalleled_state_dict[new_k] = state_dict[k]
+    return deparalleled_state_dict
+
+
+def img_folder_to_np(path, create_silhouettes=True):
+    img_filenames = [f for f in listdir(path) if isfile(join(path, f))]
+    img_filenames = natsort.natsorted(img_filenames,reverse=False)
+    arrays = []
+    for img_filename in tqdm(img_filenames):
+        with Image.open(path + img_filename) as img:
+            img = img.resize((224, 224))
+            arr = np.array(img)
+            if len(arr.shape) == 3:
+                arr = arr[:,:,0] == 255
+            else:
+                arr = arr == 255
+            arrays.append(arr)
+    arr = np.stack(arrays, axis=0)
+    return arr

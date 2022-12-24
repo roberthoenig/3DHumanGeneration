@@ -8,11 +8,10 @@ from tqdm import tqdm
 
 from Models.EMA import EMA as EMA
 from Models.conditional_model import ConditionalModel
-from utils.utils import make_beta_schedule, noise_estimation_loss
+from utils.utils import make_beta_schedule, noise_estimation_loss, parallel_to_cpu_state_dict
 
 condition_on_images = True
 in_sz = 63
-cond_sz = 64
 n_steps = 100  # number of steps
 num_steps = n_steps
 # betas = make_beta_schedule(schedule='linear', n_timesteps=num_steps, start=1e-3, end=1e-3)
@@ -21,6 +20,7 @@ betas = make_beta_schedule(schedule='sigmoid', n_timesteps=n_steps, start=1e-5, 
 
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 device = torch.device('cuda:0')
+# device = torch.device("cpu")
 
 # betas = make_beta_schedule(schedule='sigmoid', n_timesteps=num_steps, start=1e-5, end=1e-2)
 alphas = 1 - betas
@@ -33,7 +33,7 @@ one_minus_alphas_bar_sqrt = torch.sqrt(1 - alphas_prod).to(device)
 
 # create dataset
 # Batch size
-batch_size = 32
+batch_size = 64
 
 # if __name__ == 'main':
 data = np.load("../../data/DFAUST/test_res.npy")
@@ -52,32 +52,24 @@ print(dataset.shape)
 if condition_on_images:
     cond_dataset = np.load("../../data/DFAUST/test_res_silhouettes.npy")
     print("cond_dataset.shape", cond_dataset.shape)
-    # cond_dataset = cond_dataset[indices, :, :, :]
-    # cond_dataset = torch.randn(dataset.shape[0], 1, 224, 224)
     cond_dataset = torch.Tensor(cond_dataset).float()
     cond_dataset = cond_dataset.unsqueeze(1)
     print("cond_dataset.shape", cond_dataset.shape)
-    cond_model = torchvision.models.squeezenet1_1()
-    cond_model.features[0] = torch.nn.Conv2d(1, 64, kernel_size=(7,7), stride=(2,2))
-    cond_model.classifier = torch.nn.Sequential(
-        torch.nn.AvgPool2d(13, 13),
-        torch.nn.Flatten(),
-        torch.nn.Linear(512, cond_sz),
-    )
-    cond_model = torch.nn.Sequential(
-        torchvision.transforms.Resize(224),
-        torchvision.transforms.Pad(int((256 - 224) / 2)),
-        cond_model,
-    ).to(device)
+    cond_sz = 64
 else:
     cond_dataset = torch.zeros(*data.shape[:-1], 0)
-    cond_model = torch.nn.Identity()
+    cond_sz = 0
 
-model = ConditionalModel(n_steps, in_sz=in_sz, cond_sz=cond_sz, cond_model=cond_model)
+model = ConditionalModel(n_steps, in_sz=in_sz, cond_sz=cond_sz, cond_model=condition_on_images)
+load_model = False
+if load_model:
+    model_state_dict = torch.load("../../train/0422_graphAE_dfaust/diffusion/trained_2000.pt")
+    model.load_state_dict(parallel_to_cpu_state_dict(model_state_dict))
+
 # model.load_state_dict(torch.load("../../train/0422_graphAE_dfaust/diffusion/model.pt"))
 model.eval()
 model = model.to(device)
-optimizer = optim.Adam(itertools.chain(model.parameters(), cond_model.parameters()), lr=1e-3)
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Create EMA model
 ema = EMA(0.9)
 ema.register(model)
@@ -112,7 +104,8 @@ for t in pbar:
     batch_loss = np.array(losses).mean()
     pbar.set_postfix({'batch_loss': batch_loss})
     batch_losses.append(batch_loss)
-    if t % 1000 == 0:
+    if (t+1) % 1000 == 0:
+        print(f"saving to train/0422_graphAE_dfaust/diffusion/cond_model_{t}.pt")
         torch.save(model.cpu().state_dict(), f"../../train/0422_graphAE_dfaust/diffusion/cond_model_{t}.pt") 
         model.to(device)
 

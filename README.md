@@ -103,10 +103,41 @@ pip install torch-geometric
 
 
 
+## Conditioning on silhouettes
+
+### Dataset
+
+1. Ensure that `data/DFAUST/test_res.npy` has been generated.
+2. Run
+```sh
+cd code/GraphAE
+mkdir silhouettes
+python create_test_res_silhouettes.py
+```
+This will create a dataset `data/DFAUST/test_res_silhouettes.npy` that
+consists of silhouettes of the humans decoded from the latent vectors in
+`test_res.npy`.
 
 
+### Conditional training
+
+1. Run
+```sh
+cd code/GraphAE
+python diffusion_train.py
+```
+This will create checkpoints `train/0422_graphAE_dfaust/diffusion/cond_model_{EPOCH}.pt`.
 
 
+### Visualization
 
-
-
+1. Edit `state_dict` in `code/GraphAE/create_visualization.py` to load your conditional model
+checkpoint.
+2. Set `condition_on_images = True` to condition on silhouettes from `test_res_silhouettes.npy`. Or,
+   set `condition_on_images = False` to condition on PNGs in `train/0422_graphAE_dfaust/diffusion/doodle_images/`.
+3. Run
+```sh
+cd code/GraphAE
+python create_visualization.py
+```
+This will sample 3D humans conditioned on images into `../../train/0422_graphAE_dfaust/diffusion/ply`.

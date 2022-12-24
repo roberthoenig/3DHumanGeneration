@@ -4,16 +4,13 @@ from Models import graphAE as graphAE
 from utils import graphAE_param as Param
 from DataLoader import graphAE_dataloader as Dataloader
 from plyfile import PlyData
-from utils.utils import get_faces_from_ply, get_colors_from_diff_pc, dump
+from utils.utils import get_faces_from_ply, img_folder_to_np
 import os
 import open3d as o3d
 import trimesh
 import pyrender
 from PIL import Image
 from tqdm import tqdm
-from os import listdir
-from os.path import isfile, join
-import natsort
 from PIL import Image
 
 
@@ -117,17 +114,9 @@ if __name__ == "__main__":
 
             test(param, test_npy_fn, out_ply_folder, skip_frames=0)
 
-    path = "/home/robert/g/3DHumanGeneration/code/GraphAE/silhouettes/"
-    img_filenames = [f for f in listdir(path) if isfile(join(path, f))]
-    img_filenames = natsort.natsorted(img_filenames,reverse=False)
-    arrays = []
-    for img_filename in tqdm(img_filenames):
-        with Image.open(path + img_filename) as img:
-            img = img.resize((224, 224))
-            arr = np.array(img)
-            arr = arr[:,:,0] == 255
-            arrays.append(arr)
-    save_path = "/home/robert/g/3DHumanGeneration/data/DFAUST/test_res_silhouettes.npy"
-    silhouette_dataset = np.stack(arrays, axis=0)
+    # move to utils, reuse for doodle folder creation
+    path = "silhouettes/"
+    silhouette_dataset = img_folder_to_np(path)
     print(silhouette_dataset.shape)
+    save_path = "../../data/DFAUST/test_res_silhouettes.npy"
     np.save(save_path, silhouette_dataset)
