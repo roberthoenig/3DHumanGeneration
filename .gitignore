@@ -141,3 +141,4 @@ dmypy.json
 .idea/
 .vscode/
 data/DFAUST
+data/positions

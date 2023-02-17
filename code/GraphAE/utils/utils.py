@@ -121,7 +121,7 @@ def dump(obj):
   for attr in dir(obj):
     print("obj.%s = %r" % (attr, getattr(obj, attr)))
 
-def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps, device, cond):
+def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, n_steps, device, cond, idx):
     batch_size = x_0.shape[0]
     # Select a random step for each example
     t = torch.randint(0, n_steps, size=(batch_size // 2 + 1,))
@@ -132,8 +132,9 @@ def noise_estimation_loss(model, x_0, alphas_bar_sqrt, one_minus_alphas_bar_sqrt
     am1 = extract(one_minus_alphas_bar_sqrt, t, x_0.shape)
     e = torch.randn_like(x_0)
     # model input
+    print("am1", am1)
     x = x_0 * a + e * am1
-    output = model(x, t, cond=cond)
+    output = model(x, t, cond=cond, idx=idx)
     return (e - output).square().mean()
 
 def parallel_to_cpu_state_dict(state_dict):
@@ -162,3 +163,11 @@ def img_folder_to_np(path, create_silhouettes=True):
             arrays.append(arr)
     arr = np.stack(arrays, axis=0)
     return arr
+
+def prune_bbox(image_silhouette_pruned):
+    idx_l = np.argmax(image_silhouette_pruned.sum(axis=0) > 0)
+    idx_r = (image_silhouette_pruned.shape[1] - 1) - np.argmax(np.flip(image_silhouette_pruned.sum(axis=0) > 0))
+    idx_t = np.argmax(image_silhouette_pruned.sum(axis=1) > 0)
+    idx_b = (image_silhouette_pruned.shape[0] - 1) - np.argmax(np.flip(image_silhouette_pruned.sum(axis=1) > 0))
+    out = image_silhouette_pruned[idx_t:idx_b+1, idx_l:idx_r+1]
+    return out
